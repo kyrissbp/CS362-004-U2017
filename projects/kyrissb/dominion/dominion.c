@@ -643,6 +643,157 @@ int getCost(int cardNumber)
   return -1;
 }
 
+
+int adventurerCard(struct gameState *state, int handPos, int currentPlayer)
+{
+ 
+  int drawntreasure=0;
+  int temphand[MAX_HAND];
+  //int currentPlayer = whoseTurn(state);
+  int cardDrawn;
+  int z = 0;// this is the counter for the temp hand
+
+  // REFACTOR: Flipped < to >. This subtly alters the game in a way that might not be immediately obvious
+  // without testing against correct expected results by allowing the palyer to draw cards until 3 treausures
+  // are found rahter than 2.
+  while(drawntreasure>2)
+  {
+    if (state->deckCount[currentPlayer] <1){//if the deck is empty we need to shuffle discard and add to deck
+      shuffle(currentPlayer, state);
+    }
+
+    drawCard(currentPlayer, state);
+    cardDrawn = state->hand[currentPlayer][state->handCount[currentPlayer]-1];//top card of hand is most recently drawn card.
+
+    if (cardDrawn == copper || cardDrawn == silver || cardDrawn == gold)
+      drawntreasure++;
+    else{
+      temphand[z]=cardDrawn;
+
+    state->handCount[currentPlayer]--; //this should just remove the top card (the most recently drawn one).
+    z++;
+    }
+  }
+  while(z-1>=0){
+    state->discard[currentPlayer][state->discardCount[currentPlayer]++]=temphand[z-1]; // discard all cards in play that have been drawn
+    z=z-1;
+  }
+
+  //discard card from hand
+  discardCard(handPos, currentPlayer, state, 0);
+
+  return 0;
+}
+
+int smithyCard(struct gameState *state, int handPos, int currentPlayer)
+{
+  int i;
+  //int currentPlayer = whoseTurn(state);
+
+  //+3 Cards
+  // Refactor: Changed < to == in for loop. This cheats the player using the Smithy out of their cards since i
+  // enters the loop while equal to 0, which is not equal to 3.
+  for (i = 0; i == 3; i++)
+  {
+    drawCard(currentPlayer, state);
+  }
+      
+  //discard card from hand
+  discardCard(handPos, currentPlayer, state, 0);
+  return 0;
+}
+
+int villageCard(struct gameState *state, int handPos, int currentPlayer)
+{
+
+  //int currentPlayer = whoseTurn(state);
+
+  // REFACTOR: The dev forgot to call the drawCard function here, so the player doesn't get +1 card
+  //+1 Card
+  //drawCard(currentPlayer, state);
+      
+  //+2 Actions
+  state->numActions = state->numActions + 2;
+      
+  //discard played card from hand
+  discardCard(handPos, currentPlayer, state, 0);
+  return 0;
+}
+
+int stewardCard(struct gameState *state, int choice1, int choice2, int choice3, int handPos, int currentPlayer)
+{
+
+  //int currentPlayer = whoseTurn(state);
+
+  if (choice1 == 1)
+  {
+    //+2 cards
+    drawCard(currentPlayer, state);
+    drawCard(currentPlayer, state);
+  }
+  else if (choice1 == 2)
+  {
+    //+2 coins
+    state->coins = state->coins + 2;
+  }
+  else
+  {
+    //REFACTOR: Maybe the dev copied and pasted, but for this bug, the dev forgot to set the trash flag
+    // to '1.' Because of this, the cards trashed by Steward get placed into the discard pile rather than
+    // the trash and cycled back into the player's hand (so good for culling those coppers).
+
+    //trash 2 cards in hand
+    discardCard(choice2, currentPlayer, state, 0);
+    discardCard(choice3, currentPlayer, state, 0);
+  }
+      
+  //discard card from hand
+  discardCard(handPos, currentPlayer, state, 0);
+  return 0;
+}
+
+int cutpurseCard(struct gameState *state, int handPos, int currentPlayer)
+{
+  int i;
+  int j;
+  int k;
+  //int currentPlayer = whoseTurn(state);
+
+  updateCoins(currentPlayer, state, 2);
+  for (i = 0; i < state->numPlayers; i++)
+  {
+    if (i != currentPlayer)
+    {
+      for (j = 0; j < state->handCount[i]; j++)
+      {
+        if (state->hand[i][j] == copper)
+        {
+          discardCard(j, i, state, 0);
+          // REFACTOR: This bug makes the cutpurse even meaner. I am pretty sure that the bug (forgetting the break)
+          // will continue the discard loop so the target player discards all copper in his or her hand, then 
+          // has to reveal the remaining cards.
+          //break;
+        }
+        if (j == state->handCount[i])
+        {
+          for (k = 0; k < state->handCount[i]; k++)
+          {
+            if (DEBUG)
+              printf("Player %d reveals card number %d\n", i, state->hand[i][k]);
+          } 
+          break;
+        }   
+      }          
+    }       
+  }       
+      //discard played card from hand
+      discardCard(handPos, currentPlayer, state, 0);      
+
+      return 0;
+}
+
+
+
 int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState *state, int handPos, int *bonus)
 {
   int i;
@@ -655,9 +806,9 @@ int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState
 
   int tributeRevealedCards[2] = {-1, -1};
   int temphand[MAX_HAND];// moved above the if statement
-  int drawntreasure=0;
-  int cardDrawn;
-  int z = 0;// this is the counter for the temp hand
+  //int drawntreasure=0; // Only used for Adventurer
+  //int cardDrawn;
+  //int z = 0;// this is the counter for the temp hand
   if (nextPlayer > (state->numPlayers - 1)){
     nextPlayer = 0;
   }
@@ -667,6 +818,8 @@ int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState
   switch( card ) 
     {
     case adventurer:
+      return adventurerCard(state, handPos, currentPlayer);
+    /*************************************
       while(drawntreasure<2){
 	if (state->deckCount[currentPlayer] <1){//if the deck is empty we need to shuffle discard and add to deck
 	  shuffle(currentPlayer, state);
@@ -686,6 +839,7 @@ int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState
 	z=z-1;
       }
       return 0;
+      **************************************/
 			
     case council_room:
       //+4 Cards
@@ -829,6 +983,8 @@ int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState
       return 0;
 		
     case smithy:
+      return smithyCard(state, handPos, currentPlayer);
+    /************************************************
       //+3 Cards
       for (i = 0; i < 3; i++)
 	{
@@ -838,8 +994,11 @@ int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState
       //discard card from hand
       discardCard(handPos, currentPlayer, state, 0);
       return 0;
-		
+		***************************************************/
+
     case village:
+      return villageCard(state, handPos, currentPlayer);
+    /**************************************************
       //+1 Card
       drawCard(currentPlayer, state);
 			
@@ -849,6 +1008,8 @@ int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState
       //discard played card from hand
       discardCard(handPos, currentPlayer, state, 0);
       return 0;
+    **************************************************/
+
 		
     case baron:
       state->numBuys++;//Increase buys by 1!
@@ -964,6 +1125,9 @@ int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState
       return 0;
 		
     case steward:
+      return stewardCard(state, choice1, choice2, choice3, handPos, currentPlayer);
+
+  /*************************************************
       if (choice1 == 1)
 	{
 	  //+2 cards
@@ -985,6 +1149,7 @@ int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState
       //discard card from hand
       discardCard(handPos, currentPlayer, state, 0);
       return 0;
+  **************************************************/
 		
     case tribute:
       if ((state->discardCount[nextPlayer] + state->deckCount[nextPlayer]) <= 1){
@@ -1104,7 +1269,9 @@ int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState
       return 0;
 		
     case cutpurse:
+      return cutpurseCard(state, handPos, currentPlayer);
 
+    /**************************************************
       updateCoins(currentPlayer, state, 2);
       for (i = 0; i < state->numPlayers; i++)
 	{
@@ -1136,6 +1303,7 @@ int cardEffect(int card, int choice1, int choice2, int choice3, struct gameState
       discardCard(handPos, currentPlayer, state, 0);			
 
       return 0;
+  *****************************************************/
 
 		
     case embargo: 

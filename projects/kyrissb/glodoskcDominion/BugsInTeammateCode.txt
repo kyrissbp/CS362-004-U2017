@@ -1,0 +1,90 @@
+Bug Report for Issues Discovered in Christopher Glodosky's dominion.c code
+Author: Brandon P. Kyriss
+
+Bug 1:
+
+Function: adventurerEffect()
+
+Bug Description: 
+Adventurer remains in the player's hand following calls to adventurerEffect
+
+Expected behavior: 
+The adventurer card should allow the player to draw cards from the deck until a maximum of two treasures are revealed. These treasures are placed into the players hand while other non-treasure cards that were revealed are added to the discard pile. If two treasure cards are not present in the deck, the discard pile is shuffled into the deck and the player may continue drawing until a second treasure is revealed and added to the hand or all cards have been revealed and added to the discard pile. The function should end with the removal of the adventurer card from the player's hand and addition of an adventurer card to the played cards 'pile.'
+
+Example Test Case:
+This bug will be observed with any valid initial deck/hand/discard size combination because discard is independent of any game state data. It was observed in 100% of my random test iterations.
+
+Expected Output:
+Following the call to adventurerEffect(), the total deck count (deck + discard) should be equal to PreDeckCount + PreDiscardCount – GainedTreasures, 
+where GainedTreasures = (PostHandTreasure – PreHandTreasure). Gained treasuers should = 2 if the total deck treasure count (total treasure cards in deck + discard) 
+is >= 2, otherwise, it should be equal to the total deck treasure count. The PostHandCount should equal PreHandCount + GainedTreasures - 1, due to the fact that 
+the adventurer should be removed from the hand and placed in the played cards 'pile' and removed from the hand. The PrePlayedCards count should be equal to 0, and 
+PostPlayedCards should be 1 due to the addition of the adventurer card to the played cards 'pile.'
+
+Actual Output:
+All tests failed with the following error: “Adventurer was not added to the played pile (discarded).” As can be seen in the example test case below, 
+the post deck count is correct, but the PostHandCount and PlayedCards are not:
+
+PostDeckCount:  Expected = 268 + 32 – (15 –13) = 298,  Actual = 273 + 25 = 298
+
+PreDeckTreasureCount = 60, indicating that 2 treasures can be drawn and PostDeckTreasureCount = 60 – 2 = 58
+
+Post Hand Count: Expected = 47 + (15 – 13) - 1 = 48, but Actual = 49
+
+Finally, the PlayedCards count remains at 0 following the call to adventurerEffect, indicating that the adventurer was not discarded after being played.
+
+
+Bug 2:
+
+Function: smithyEffect()
+
+Bug Description: Calling the smithy effect leads to =4 cards rather than +3.
+
+Expected behavior: Smithy should cause the player to draw up to 4 cards and place them in his or her hand, then the Smithy card should be discarded.
+
+Example Test Cases:
+This bug will be observed with any inputs in which there are >= 4 cards in the deck + discard. The bug cannot be seen if there are less than 4 cards 
+available for draw (deck + discard) because there is no possibility that 4 cards will be drawn.
+
+Actual Output:
+For this test, we fail ~98% of the test iterations. Each iteration fails 2 tests. Both of these tests apply to decks where there are at least 3 available cards 
+to draw (either with or without reshuffle). The effect does not fail when there are less than 3 total cards available to draw (deck + discard).
+
+There were two errors that were repeatedly seen in the test data from my random test: 
+
+1) A combination of the wrong number of cards being removed from the deck and added to the hand in cases where more than 3 
+cards were available after a shuffle. In this scenario, the initial deck did not have enough cards to draw 3 without reshuffle. 
+In the output, we can see that the reshuffle worked, but prior to the card effect being carried our, the full deck (deck + discard) 
+contained 18 + 1 = 19 cards. Following the call to the smithy effect, 15 (19 – 4) remain in the deck, indicating that one too many cards 
+was removed from the deck. The second error that is raised for this scenario tells us that the final hand contains the wrong number of cards.  
+A correctly working smithy should add three drawn cards to the hand, then one card is subtracted when the smithy is discarded (in this case, 
+placed in the played cards pile until cleanup). In this case, the hand size following card effect has preHandCount + 3 cards rather than the 
+expected perHandCount + 3 – 1 cards (473 + 3 – 1 = 475). This indicates that either 4 cards were added to the hand and one removed or that no 
+cards were removed. Since a 3rd error was not raised indicating that the played card pile did not increment by one, we know that the answer is 
+that 4 cards were added to the hand rather than 3 (which makes sense since 4 were removed from the deck).
+
+2) This set of errors is identical to the previous error set except it is being raised for scenarios in which >= 3 cards are available to draw from 
+the preDeck and a shuffle is not required. We can see that once again, 4 cards are removed from the deck between pre – and post- states, and there is 
+a net increase of 3 cards between pre- and post- hands without a played card failure error, indicating the 4 cards were drawn rather than 3.
+
+
+Bug 3:
+
+Function: villageEffect()
+
+Bug Description: The village card is trashed rather than placed in the cardsPlayed pile following play due to an incorrect flag in Village’s call to discardCard.
+
+Expected behavior: The Village card should allow the player to draw a single card, which is removed from the deck and placed into the players hand, and adds +2 actions 
+to the player’s total actionCount fro the turn. The card should then be discarded to the cardsPlayed played to eventually be funneled into discard band shuffled back into 
+the deck.
+
+Example Test Cases:
+This bug is observed with all valid inputs because it is due to the trash flag parameter being set to 1 in the parameters for the call to discardCard.
+
+Actual Output:
+Chris’ refactored village card effect raised the same error each iteration. This error has to do with the card not being discarded properly following play. 
+No errors regarding the + 2 actions were raised, indicating that actions are being added as expected. Each iteration, one card is removed from the deck (drawn) 
+and the hand gets + 1, -1 cards (newly drawn card is added, and village is removed (should be moved to played cards pile). Following a call to the function, the 
+hand count is adjusted correctly (+ 1 – 1), but the no cards are being added to the played cards pile. Upon examination of the code, the discard function 
+is being passed a 1 (‘true’ for the trash flag) rather than a 0. This causes the card to be trashed rather than added to the played pile and eventually cycled back 
+into the deck. Trashing a card basically throws it into oblivion as far as the dominion code is concerned, so there is no trash pile to check.
